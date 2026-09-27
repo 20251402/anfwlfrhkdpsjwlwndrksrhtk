@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMR 관리</title>
+<style>
+:root{color-scheme:light;--bg:#e9ecf1;--sf:#fff;--ink:#161a21;--mut:#5d6675;--line:#d3d9e2;
+  --acc:#2a55c4;--ok:#0f7554;--bad:#b32d22}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#101319;--sf:#181c24;
+  --ink:#e6e9ef;--mut:#9aa4b4;--line:#2b313d;--acc:#7d9ffb;--ok:#4ed3a0;--bad:#ff8d80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,"Apple SD Gothic Neo",sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:36px 16px 60px}
+h1{font-size:26px;margin:0 0 6px;letter-spacing:-.02em}
+p.sub{color:var(--mut);margin:0 0 22px;font-size:14px}
+.bar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px}
+input,button{font:inherit}
+input{padding:10px 12px;border:1.5px solid var(--line);border-radius:9px;background:var(--sf);color:var(--ink)}
+input:focus{outline:none;border-color:var(--acc)}
+button{padding:10px 15px;border:1px solid var(--line);border-radius:9px;background:var(--sf);
+  color:var(--ink);cursor:pointer;font-weight:500}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff}
+button:hover{border-color:var(--acc)}
+table{width:100%;border-collapse:collapse;background:var(--sf);border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;font-size:14px}
+th,td{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:600}
+tr:last-child td{border-bottom:0}
+code{font-family:ui-monospace,Menlo,monospace;background:rgba(127,127,127,.14);
+  padding:2px 7px;border-radius:6px}
+.on{color:var(--ok);font-weight:600}.off{color:var(--mut)}
+.warn{color:var(--bad);font-weight:600}
+.msg{margin:14px 0;padding:11px 13px;border-radius:9px;background:var(--sf);border:1px solid var(--line)}
+.new{margin-top:26px;background:var(--sf);border:1px solid var(--line);border-radius:12px;padding:16px}
+.new h2{font-size:15px;margin:0 0 12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>OMR 계정 관리</h1>
+  <p class="sub">관리자 토큰으로 계정을 만들고 지우고 비밀번호를 초기화합니다. 비밀번호는 해시로만 저장되어 <b>조회할 수 없습니다</b>. 잊어버린 학생은 <code>1234</code>로 초기화해 주세요. 토큰은 이 브라우저에만 저장됩니다.</p>
+  <div class="bar">
+    <input id="tok" type="password" placeholder="관리자 토큰" style="flex:1;min-width:220px">
+    <button class="p" onclick="load()">불러오기</button>
+    <button onclick="localStorage.removeItem('omr.admin');location.reload()">토큰 지우기</button>
+  </div>
+  <div id="msg"></div>
+  <div id="tbl"></div>
+
+  <div class="new">
+    <h2>계정 만들기</h2>
+    <div class="row">
+      <input id="nid" placeholder="아이디 (예: hwanil7)">
+      <input id="nname" placeholder="학생 이름">
+      <button class="p" onclick="act('create')">만들기</button>
+    </div>
+    <p class="sub" style="margin:10px 0 0">만든 계정은 첫 로그인 때 비밀번호를 반드시 바꾸게 됩니다.
+      첫 비밀번호는 <code>1234</code>로 고정됩니다.</p>
+  </div>
+</div>
+<script>
+var T = "";
+try { T = localStorage.getItem("omr.admin") || ""; } catch (e) {}
+if (T) document.getElementById("tok").value = T;
+function hdr() {
+  T = document.getElementById("tok").value.trim();
+  try { localStorage.setItem("omr.admin", T); } catch (e) {}
+  return { "content-type": "application/json", "x-admin-token": T };
+}
+function say(t, bad) {
+  document.getElementById("msg").innerHTML = t
+    ? '<div class="msg' + (bad ? ' warn' : '') + '">' + t + "</div>" : "";
+}
+function fmt(ms) {
+  if (!ms) return "–";
+  var d = new Date(ms);
+  return d.getFullYear() + "." + (d.getMonth() + 1) + "." + d.getDate() + " "
+    + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+function load() {
+  say("불러오는 중…");
+  fetch("/api/admin/users", { headers: hdr() }).then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (j.error) { say(j.error, 1); return; }
+      say("");
+      var h = "<table><tr><th>이름</th><th>아이디</th><th>비밀번호</th><th>접속</th>"
+        + "<th>마지막 로그인</th><th>푼 문항</th><th></th></tr>";
+      j.users.forEach(function (u) {
+        h += "<tr><td>" + u.name + "</td><td><code>" + u.id + "</code></td>"
+          + "<td>" + (u.mustChange
+            ? "<span class='warn'>1234 (아직 안 바꿈)</span>"
+            : "<span class='off'>학생이 바꿈 · 조회 불가</span>") + "</td>"
+          + "<td class='" + (u.online ? "on" : "off") + "'>" + (u.online ? "접속 중" : "오프라인") + "</td>"
+          + "<td>" + fmt(u.lastLogin) + "</td>"
+          + "<td>" + u.solved + "문항 · 오답 " + u.wrong + "</td>"
+          + "<td class='row'>"
+          + "<button onclick=\"act('kick','" + u.id + "')\">로그아웃</button>"
+          + "<button onclick=\"act('reset','" + u.id + "')\">1234로 초기화</button>"
+          + "<button onclick=\"act('delete','" + u.id + "')\">삭제</button>"
+          + "</td></tr>";
+      });
+      document.getElementById("tbl").innerHTML = h + "</table>";
+    }).catch(function () { say("서버에 연결하지 못했습니다.", 1); });
+}
+function act(action, id) {
+  var body = { action: action, id: id };
+  if (action === "create") {
+    body.id = document.getElementById("nid").value.trim();
+    body.name = document.getElementById("nname").value.trim();
+    body.pw = "1234";
+    if (!body.id || !body.name) { say("아이디와 이름을 넣으세요.", 1); return; }
+  }
+    if (action === "delete" && !confirm(id + " 계정과 풀이 기록을 지웁니다. 계속할까요?")) return;
+  if (action === "reset" && !confirm(id + " 비밀번호를 1234로 되돌리고 로그아웃시킵니다. 계속할까요?")) return;
+  fetch("/api/admin/user", { method: "POST", headers: hdr(), body: JSON.stringify(body) })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { if (j.error) say(j.error, 1); else load(); })
+    .catch(function () { say("서버에 연결하지 못했습니다.", 1); });
+}
+if (T) load();
+</script>
+</body>
+</html>
