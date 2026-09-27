@@ -1,13 +1,14 @@
-"use strict";
 /**
- * 물질과 에너지 OMR — 백엔드 (Netlify Functions + Netlify Blobs)
+ * 물질과 에너지 OMR — 백엔드 (Netlify Functions v2 + Netlify Blobs)
  *
  * 계정은 웹에서 만들 수 없고, 관리자 토큰으로만 생성·삭제한다.
  * 비밀번호는 salt + scrypt 해시로만 보관한다. 되돌릴 수 있는 형태로는 어디에도
  * 저장하지 않으므로 관리자도 조회할 수 없고, 잊어버리면 1234로 초기화한다.
+ *
+ * Blobs 는 v2 형식(export default)에서만 환경이 자동으로 잡힌다.
  */
-const crypto = require("crypto");
-const { getStore } = require("@netlify/blobs");
+import crypto from "node:crypto";
+import { getStore } from "@netlify/blobs";
 
 const SEED = [
   { id: "hwanil1", name: "김민재", pw: "1234" },
@@ -44,10 +45,9 @@ function makeUser(id, name, pw) {
 }
 
 /* ---------- 응답 ---------- */
-const J = (code, body) => ({
-  statusCode: code,
+const J = (code, body) => new Response(JSON.stringify(body), {
+  status: code,
   headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
-  body: JSON.stringify(body),
 });
 
 async function seedIfEmpty(st) {
@@ -62,9 +62,8 @@ async function seedIfEmpty(st) {
   return ids;
 }
 
-async function auth(st, event) {
-  const h = event.headers.authorization || event.headers.Authorization || "";
-  const token = h.replace(/^Bearer\s+/i, "").trim();
+async function auth(st, req) {
+  const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
   if (!token) return null;
   const ids = (await st.get("index", { type: "json" })) || [];
   for (const id of ids) {
@@ -76,8 +75,8 @@ async function auth(st, event) {
   }
   return null;
 }
-function isAdmin(event) {
-  const t = event.headers["x-admin-token"] || event.headers["X-Admin-Token"] || "";
+function isAdmin(req) {
+  const t = req.headers.get("x-admin-token") || "";
   return !!process.env.ADMIN_TOKEN && t === process.env.ADMIN_TOKEN;
 }
 const pub = (u) => ({
@@ -154,17 +153,34 @@ function buildExam(state, avg) {
 }
 
 /* ---------- 라우터 ---------- */
-exports.handler = async function (event) {
-  const path = (event.path || "").replace(/^.*\/api/, "").replace(/\/$/, "") || "/";
+export const config = { path: "/api/*" };
+
+export default async function handler(req) {
+  const path = new URL(req.url).pathname.replace(/^\/api/, "").replace(/\/$/, "") || "/";
   let body = {};
-  try { body = event.body ? JSON.parse(event.body) : {}; } catch (e) {}
-  const st = users(), ss = states();
+  if (req.method === "POST") {
+    try { body = await req.json(); } catch (e) { body = {}; }
+  }
+
+  if (path === "/health") {
+    let blobOk = false, blobErr = "";
+    try { await users().get("index", { type: "json" }); blobOk = true; }
+    catch (e) { blobErr = String((e && e.message) || e); }
+    return J(200, {
+      ok: true, node: process.version, blobs: blobOk,
+      blobsError: blobErr, adminToken: !!process.env.ADMIN_TOKEN,
+    });
+  }
+
+  let st, ss;
+  try { st = users(); ss = states(); }
+  catch (e) { return J(500, { error: String((e && e.message) || e) }); }
 
   try {
     await seedIfEmpty(st);
 
     /* --- 로그인 --- */
-    if (path === "/login" && event.httpMethod === "POST") {
+    if (path === "/login" && req.method === "POST") {
       const id = String(body.id || "").trim();
       const u = await st.get("u/" + id, { type: "json" });
       if (!u) return J(401, { error: "아이디 또는 비밀번호가 맞지 않습니다." });
@@ -183,7 +199,7 @@ exports.handler = async function (event) {
       u.session = {
         token: token,
         device: String(body.device || crypto.randomBytes(8).toString("hex")),
-        ua: String((event.headers["user-agent"] || "").slice(0, 120)),
+        ua: String((req.headers.get("user-agent") || "").slice(0, 120)),
         at: Date.now(), seen: Date.now(),
         exp: Date.now() + (body.remember ? LONG_MS : SHORT_MS),
       };
@@ -193,18 +209,18 @@ exports.handler = async function (event) {
     }
 
     /* --- 아래는 로그인 필요 --- */
-    const me = await auth(st, event);
+    const me = await auth(st, req);
     if (path === "/me") {
       if (!me) return J(401, { error: "로그인이 필요합니다." });
       me.session.seen = Date.now();
       await st.setJSON("u/" + me.id, me);
       return J(200, { user: pub(me) });
     }
-    if (path === "/logout" && event.httpMethod === "POST") {
+    if (path === "/logout" && req.method === "POST") {
       if (me) { me.session = null; await st.setJSON("u/" + me.id, me); }
       return J(200, { ok: true });
     }
-    if (path === "/password" && event.httpMethod === "POST") {
+    if (path === "/password" && req.method === "POST") {
       if (!me) return J(401, { error: "로그인이 필요합니다." });
       const cur = String(body.current || ""), next = String(body.next || "");
       if (hashPw(cur, me.salt) !== me.hash) return J(400, { error: "현재 비밀번호가 맞지 않습니다." });
@@ -220,11 +236,11 @@ exports.handler = async function (event) {
     }
     if (path === "/state") {
       if (!me) return J(401, { error: "로그인이 필요합니다." });
-      if (event.httpMethod === "GET") {
+      if (req.method === "GET") {
         const s = (await ss.get("s/" + me.id, { type: "json" })) || { saved: {}, times: {} };
         return J(200, s);
       }
-      if (event.httpMethod === "POST") {
+      if (req.method === "POST") {
         const s = {
           saved: body.saved || {}, times: body.times || {},
           updatedAt: Date.now(), by: me.id,
@@ -238,7 +254,7 @@ exports.handler = async function (event) {
     if (path === "/exam") {
       if (!me) return J(401, { error: "로그인이 필요합니다." });
       const now = Date.now();
-      if (now < EXAM_UNLOCK && !isAdmin(event)) {
+      if (now < EXAM_UNLOCK && !isAdmin(req)) {
         return J(200, { locked: true, unlockAt: EXAM_UNLOCK, now: now });
       }
       const s = (await ss.get("s/" + me.id, { type: "json" })) || { saved: {}, times: {} };
@@ -252,9 +268,9 @@ exports.handler = async function (event) {
 
     /* --- 관리자 --- */
     if (path.indexOf("/admin") === 0) {
-      if (!isAdmin(event)) return J(403, { error: "관리자 토큰이 필요합니다." });
+      if (!isAdmin(req)) return J(403, { error: "관리자 토큰이 필요합니다." });
       const ids = (await st.get("index", { type: "json" })) || [];
-      if (path === "/admin/users" && event.httpMethod === "GET") {
+      if (path === "/admin/users" && req.method === "GET") {
         const out = [];
         for (const id of ids) {
           const u = await st.get("u/" + id, { type: "json" });
@@ -280,7 +296,7 @@ exports.handler = async function (event) {
         }
         return J(200, { users: out });
       }
-      if (path === "/admin/user" && event.httpMethod === "POST") {
+      if (path === "/admin/user" && req.method === "POST") {
         const id = String(body.id || "").trim();
         if (!id) return J(400, { error: "id가 필요합니다." });
         if (body.action === "create") {
@@ -319,4 +335,4 @@ exports.handler = async function (event) {
   } catch (e) {
     return J(500, { error: String((e && e.message) || e) });
   }
-};
+}

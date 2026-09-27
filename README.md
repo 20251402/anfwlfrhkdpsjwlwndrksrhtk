@@ -70,7 +70,7 @@ index.html                  앱 (CSS/JS 인라인)
 admin.html                  관리 페이지
 data.json                   426문항의 형식·정답·이미지 좌표
 img/*.jpg                   문제·해설 이미지 시트 (세트별 9장, 한 장에 8문항)
-netlify/functions/api.js    로그인·기록·관리·시험대비 API
+netlify/functions/api.js    로그인·기록·관리·시험대비 API (Functions v2, ESM)
 netlify.toml                배포 설정 (/api/* → 함수로 연결)
 package.json                @netlify/blobs 의존성
 ```
