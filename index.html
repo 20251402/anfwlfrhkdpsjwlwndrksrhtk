@@ -269,7 +269,8 @@ h1,h2,h3{text-wrap:balance;margin:0}
   border-top:1px solid var(--line-soft)}
 .scratchbar button{border:1px solid var(--line);background:var(--surface);border-radius:8px;
   padding:6px 12px;font-size:12.5px;font-weight:500;color:var(--muted)}
-.scratchbar button:hover{border-color:var(--accent);color:var(--accent)}
+.scratchbar button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.scratchbar button:disabled{opacity:.42;cursor:default}
 .guidewrap{position:fixed;inset:0;z-index:70;background:rgba(12,16,26,.45);
   display:flex;align-items:center;justify-content:center;padding:18px}
 .guide{background:var(--surface);border:1px solid var(--line);border-radius:16px;
@@ -439,7 +440,6 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .sheet{pointer-events:none}
 :root[data-pen="1"][data-palm="1"] .ink{touch-action:none}
 :root[data-pen="1"][data-palm="0"] .ink{touch-action:pan-y}
-:root[data-pen="1"][data-tool="hand"] .ink{pointer-events:none;touch-action:auto}
 </style>
 
 </head>
@@ -474,6 +474,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
         st.ermode = a.ermode === "st" ? "st" : "px";
         st.erpx = Math.min(60, Math.max(6, a.erpx || 17));
         if (st.tool === "erp") st.tool = "er";
+        if (st.tool === "hand") st.tool = "pen";
         st.palm = a.palm == null ? true : !!a.palm;
         st.shuf = !!a.shuf; st.seed = a.seed || 1; st.guide = !!a.guide;
         if (a.scope) st.scope = a.scope;
@@ -1513,7 +1514,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     if (INKT) { clearTimeout(INKT); INKT = null; }
     try { localStorage.setItem("omr.ink", JSON.stringify(INK)); } catch (e) {}
   }
-  // 획을 뗄 때마다 통째로 저장하면 애플펜슬이 다음 획을 놓친다 — 조금 미뤘다 한 번만 저장
+  // 획을 뗄 때마다 통째로 저장하면 펜이 다음 획을 놓친다 — 조금 미뤘다 한 번만 저장
   function saveInkSoon() {
     if (INKT) return;
     INKT = setTimeout(function () { INKT = null; saveInk(); }, 600);
@@ -1549,15 +1550,6 @@ input,textarea{-webkit-user-select:text;user-select:text}
     erp: ["M12.6 5.1l5.8 5.8a1.8 1.8 0 0 1 0 2.5l-4.2 4.2H8.2L4.6 14a1.8 1.8 0 0 1 0-2.5l5.5-5.5"
           + "a1.8 1.8 0 0 1 2.5 0z", "M9.3 8.4l6.4 6.4", "M3.5 20.4h2.2", "M9 20.4h2.2", "M14.5 20.4h2.2",
           "M20 20.4h1"],
-    hand: ["M9 11V5.6a1.3 1.3 0 0 1 2.6 0V11", "M11.6 10.6V4.4a1.3 1.3 0 0 1 2.6 0v6.2",
-           "M14.2 11V6.4a1.3 1.3 0 0 1 2.6 0V13", "M9 11V9.2a1.3 1.3 0 0 0-2.6 0v4.4c0 3.4 2.3 6.4 5.9 6.4 3.4 0 5.5-2.4 5.5-6.2"],
-    palm: ["M9 11V5.6a1.3 1.3 0 0 1 2.6 0V11", "M11.6 10.6V4.4a1.3 1.3 0 0 1 2.6 0v6.2",
-           "M14.2 11V6.4a1.3 1.3 0 0 1 2.6 0V13",
-           "M9 11V9.2a1.3 1.3 0 0 0-2.6 0v4.4c0 3.4 2.3 6.4 5.9 6.4 3.4 0 5.5-2.4 5.5-6.2"],
-    palmx: ["M9 11V5.6a1.3 1.3 0 0 1 2.6 0V11", "M11.6 10.6V4.4a1.3 1.3 0 0 1 2.6 0v6.2",
-            "M14.2 11V6.4a1.3 1.3 0 0 1 2.6 0V13",
-            "M9 11V9.2a1.3 1.3 0 0 0-2.6 0v4.4c0 3.4 2.3 6.4 5.9 6.4 3.4 0 5.5-2.4 5.5-6.2",
-            "M4 20L20 4"],
     undo: ["M9 14l-4-4 4-4", "M5 10h8a5 5 0 0 1 0 10h-3"],
     redo: ["M15 14l4-4-4-4", "M19 10h-8a5 5 0 0 0 0 10h3"],
     trash: ["M5 7h14", "M9 7V5h6v2", "M7 7l1 12h8l1-12"],
@@ -1618,7 +1610,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
         g.stroke();
       });
       g.globalAlpha = 1;
-      if (ring && st.pen && st.tool === "er") {
+      if (ring && st.pen && st.tool === "er" && st.ermode === "px") {
         var rr = erR() * u;
         g.beginPath();
         g.arc(ring[0] * u, ring[1] * u, rr, 0, 6.2832);
@@ -1714,8 +1706,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
       drawn = d.length;
     }
     cv.addEventListener("pointerdown", function (e) {
-      if (!st.pen || st.tool === "hand") return;
-      // 손 인식 X: 애플펜슬(pen)만 받고 손가락(touch)은 화면 넘기기로 흘려보낸다
+      if (!st.pen) return;
+      // 손 인식 X: 터치펜(pen)만 받고 손가락(touch)은 화면 넘기기로 흘려보낸다
       if (!st.palm && e.pointerType === "touch") return;
       e.preventDefault();
       INKEND = end;
@@ -1724,7 +1716,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
       var p = at(e);
       if (st.tool === "er") {
         cur = "er"; erasing = 0;
-        ring = p;
+        ring = st.ermode === "px" ? p : null;
         rub(p);
         paint();
         return;
@@ -1744,7 +1736,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     cv.addEventListener("pointermove", function (e) {
       if (!cur) return;
       e.preventDefault();
-      // 애플펜슬은 한 프레임에 여러 점을 모아 보낸다 — 다 써야 선이 매끄럽다
+      // 터치펜은 한 프레임에 여러 점을 모아 보낸다 — 다 써야 선이 매끄럽다
       var evs = (e.getCoalescedEvents && e.getCoalescedEvents()) || [e];
       if (!evs.length) evs = [e];
       var changed = false;
@@ -1755,7 +1747,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
         if (Math.abs(p[0] - last[0]) + Math.abs(p[1] - last[1]) < 0.0008) continue;
         cur.d.push(p);
       }
-      if (cur === "er") { ring = at(e); paint(); }
+      if (cur === "er") { ring = st.ermode === "px" ? at(e) : null; paint(); }
       else tail();
     }, { passive: false });
     function end() {
@@ -1777,7 +1769,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     cv.addEventListener("pointerup", end);
     cv.addEventListener("pointercancel", end);
     cv.addEventListener("pointermove", function (e) {
-      if (cur || !st.pen || st.tool !== "er") return;
+      if (cur || !st.pen || st.tool !== "er" || st.ermode !== "px") return;
       if (e.pointerType === "touch" && !st.palm) return;
       ring = at(e);
       if (ringRaf) return;
@@ -1788,11 +1780,11 @@ input,textarea{-webkit-user-select:text;user-select:text}
     });
     cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
     function blockTouch(e) {
-      if (!st.pen || st.tool === "hand") return false;
+      if (!st.pen) return false;
       if (st.palm) return true;
       var t = e.touches && e.touches.length ? e.touches : (e.changedTouches || []);
       for (var i = 0; i < t.length; i++) {
-        if (t[i].touchType === "stylus") return true;   // 사파리: 애플펜슬
+        if (t[i].touchType === "stylus") return true;   // 사파리: 터치펜 입력
       }
       return false;
     }
@@ -1808,8 +1800,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
   }
 
   var GUIDE = [
-    ["hand", "손 (화면 넘기기)", "필기를 잠시 멈춥니다. 펜이 먹지 않으니 화면을 자유롭게 밀어 올리거나 내릴 수 있습니다. 다시 쓰려면 펜을 고르세요."],
-    ["@palm", "손 인식 O / X", "O면 손가락으로도 써집니다. X로 두면 애플펜슬로만 써지고 손가락은 화면 넘기기가 됩니다 — 글씨 쓰다 손바닥이 닿아도 줄이 그어지지 않습니다. 눌러서 바꿉니다."]
+    ["@palm", "손 인식 O / X", "O면 손가락으로도 써집니다. X로 두면 터치펜으로만 써지고 손가락은 화면 넘기기가 됩니다 — 펜으로 쓰다 손바닥이 닿아도 줄이 그어지지 않습니다. 터치펜 없이 손가락으로 쓴다면 O로 두세요. 눌러서 바꿉니다."]
   ];
   function erPanel() {
     var box = el("div", "ersl");
@@ -1835,8 +1826,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
   function palmBtn(fn) {
     var b = el("button", "gpill" + (st.palm ? " on" : ""));
     b.type = "button";
-    b.title = st.palm ? "손 인식 O — 손가락으로도 써집니다 (누르면 펜슬만)"
-                      : "손 인식 X — 애플펜슬만 써지고 손가락은 화면 넘기기 (누르면 손도 허용)";
+    b.title = st.palm ? "손 인식 O — 손가락으로도 써집니다 (누르면 터치펜만)"
+                      : "손 인식 X — 터치펜만 써지고 손가락은 화면 넘기기 (누르면 손도 허용)";
     b.setAttribute("aria-label", b.title);
     b.appendChild(el("span", "pl", "손 인식"));
     b.appendChild(el("span", "pv", st.palm ? "O" : "X"));
@@ -1846,7 +1837,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
   function guideCard() {
     var wrap = el("div", "guidewrap");
     var c = el("div", "guide");
-    c.appendChild(el("b", null, "손 관련 도구 두 가지"));
+    c.appendChild(el("b", null, "필기 설정"));
     GUIDE.forEach(function (g) {
       var row = el("div", "grow");
       if (g[0] === "@palm") {
@@ -1862,7 +1853,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
       row.appendChild(tx);
       c.appendChild(row);
     });
-    var ok = el("button", "go", "알겠습니다");
+    var ok = el("button", "go", "확인");
     ok.type = "button";
     ok.onclick = function () { st.guide = true; savePrefs(); render(); };
     c.appendChild(ok);
@@ -1885,7 +1876,6 @@ input,textarea{-webkit-user-select:text;user-select:text}
         st.tool = "er";
         setPen(); savePrefs(); re();
       }));
-    bar.appendChild(toolBtn("hand", st.tool === "hand", "손 (화면 넘기기)", function () { st.tool = "hand"; setPen(); savePrefs(); re(); }));
     bar.appendChild(el("div", "gsep"));
     bar.appendChild(palmBtn(function () { st.palm = !st.palm; setPen(); savePrefs(); re(); }));
     bar.appendChild(el("div", "gsep"));
@@ -1897,7 +1887,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
       b.setAttribute("aria-pressed", i === sel && st.tool !== "er" ? "true" : "false");
       var d = el("i"); d.style.background = c; b.appendChild(d);
       b.onclick = function () {
-        if (st.tool === "er" || st.tool === "hand") st.tool = "pen";
+        if (st.tool === "er") st.tool = "pen";
         if (st.tool === "hl") st.hcolor = i; else st.color = i;
         setPen(); savePrefs(); re();
       };
@@ -1964,9 +1954,6 @@ input,textarea{-webkit-user-select:text;user-select:text}
     var pr = el("div", "bar prog"), pi = el("i");
     pi.style.width = ((st.i + 1) / list.length * 100).toFixed(1) + "%";
     pr.appendChild(pi);
-    var eye = el("button", "ghost", st.showQ ? "문제 숨기기" : "문제 보이기");
-    eye.type = "button";
-    eye.onclick = function () { st.showQ = !st.showQ; savePrefs(); render(); };
     var pen = el("button", "ghost", st.pen ? "필기 끄기" : "필기");
     pen.type = "button";
     pen.onclick = function () { st.pen = !st.pen; setPen(); savePrefs(); render(); };
@@ -1974,7 +1961,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     res.type = "button";
     res.onclick = function () { st.view = "result"; render(); window.scrollTo(0, 0); };
     tin.appendChild(back); tin.appendChild(id); tin.appendChild(pr);
-    tin.appendChild(pen); tin.appendChild(eye); tin.appendChild(res);
+    tin.appendChild(pen); tin.appendChild(res);
     top.appendChild(tin); frag.appendChild(top);
 
     st.tick = st.tick || Date.now();
@@ -1988,7 +1975,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
     } else {
       wrapIn.appendChild(el("div", "nofig", PARTS[q.p] + " · " + q.n + "번 — 문제지를 보고 답만 입력하세요"));
     }
-    if (st.pen && !rec0.h) { rec0.h = 360; saveInk(); }
+    // 필기를 켜면 한 번만 기본 공간을 열어 준다 (줄여서 0이 돼도 다시 안 열리게)
+    if (st.pen && !rec0.hi) { rec0.hi = 1; if (!rec0.h) rec0.h = 120; saveInk(); }
     if (rec0.h) {
       var sc = el("div", "scratch");
       sc.style.height = rec0.h + "px";
@@ -1999,16 +1987,23 @@ input,textarea{-webkit-user-select:text;user-select:text}
     inkCanvas(wrapIn, q);
     if (st.pen) {
       var sb = el("div", "scratchbar");
-      var add = el("button", null, "+ 풀이 공간");
+      var HMIN = 120, HSTEP = 320, HMAX = 4800;
+      var add = el("button", null, "풀이 공간 늘리기");
       add.type = "button";
-      add.onclick = function () { rec0.h = (rec0.h || 0) + 320; saveInk(); render(); };
+      add.disabled = rec0.h >= HMAX;
+      add.onclick = function () {
+        rec0.h = Math.min(HMAX, (rec0.h || 0) + HSTEP);
+        saveInk(); render();
+      };
       sb.appendChild(add);
-      if (rec0.h) {
-        var less = el("button", null, "− 공간 줄이기");
-        less.type = "button";
-        less.onclick = function () { rec0.h = Math.max(0, rec0.h - 320); saveInk(); render(); };
-        sb.appendChild(less);
-      }
+      var less = el("button", null, "풀이 공간 줄이기");
+      less.type = "button";
+      less.disabled = (rec0.h || 0) <= HMIN;
+      less.onclick = function () {
+        rec0.h = Math.max(HMIN, (rec0.h || 0) - HSTEP);
+        saveInk(); render();
+      };
+      sb.appendChild(less);
       card.appendChild(sb);
     }
     if (q.lab) {
