@@ -113,8 +113,10 @@ function buildExam(state, avg) {
     const m = saved[sl] || {};
     for (const k in m) {
       const r = m[k];
-      if (!r || !r.tried) continue;
-      if (r.tried > 1 || !r.ok) flagged[k] = flagged[k] || "틀림";
+      if (!r || (!r.tried && !r.hf)) continue;
+      // 약분이 덜 된 제출은 0.5회 오답으로 친다
+      const miss = (r.ok ? Math.max(0, r.tried - 1) : r.tried) + 0.5 * (r.hf || 0);
+      if (miss >= 1 || !r.ok) flagged[k] = flagged[k] || "틀림";
     }
   });
   for (const tk in times) {
@@ -281,7 +283,10 @@ export default async function handler(req) {
             for (const sl in s.saved) {
               for (const k in s.saved[sl]) {
                 const r = s.saved[sl][k];
-                if (r && r.tried) { solved++; if (!r.ok) wrong++; }
+                if (!r || (!r.tried && !r.hf)) continue;
+                if (r.tried) solved++;
+                if (r.tried && !r.ok) wrong++;
+                wrong += 0.5 * (r.hf || 0);        // 약분 덜 한 제출 = 0.5회
               }
             }
           }
@@ -291,7 +296,7 @@ export default async function handler(req) {
             online: !!(u.session && u.session.exp > Date.now()
               && Date.now() - (u.session.seen || 0) < IDLE_MS),
             device: u.session ? u.session.ua : "",
-            solved: solved, wrong: wrong,
+            solved: solved, wrong: Math.round(wrong * 10) / 10,
           });
         }
         return J(200, { users: out });

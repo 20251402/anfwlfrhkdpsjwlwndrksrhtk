@@ -4,7 +4,12 @@
   functions = "netlify/functions"
 
 [[headers]]
-  for = "/img/*"
+  for = "/s*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/s*.jpg"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
