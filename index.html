@@ -263,6 +263,23 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .scratchbar button{border:1px solid var(--line);background:var(--surface);border-radius:8px;
   padding:6px 12px;font-size:12.5px;font-weight:500;color:var(--muted)}
 .scratchbar button:hover{border-color:var(--accent);color:var(--accent)}
+.guidewrap{position:fixed;inset:0;z-index:70;background:rgba(12,16,26,.45);
+  display:flex;align-items:center;justify-content:center;padding:18px}
+.guide{background:var(--surface);border:1px solid var(--line);border-radius:16px;
+  padding:18px 18px 16px;max-width:430px;width:100%;max-height:82vh;overflow:auto;
+  box-shadow:0 24px 60px -20px rgba(10,15,30,.55)}
+.guide>b{display:block;font-size:16px;margin-bottom:12px}
+.grow{display:flex;gap:11px;align-items:flex-start;padding:8px 0;
+  border-top:1px solid var(--line-soft)}
+.grow:first-of-type{border-top:0}
+.gic{flex:0 0 auto;width:32px;height:32px;border-radius:50%;border:1px solid var(--line);
+  display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.gic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.gtx{min-width:0}
+.gtx b{display:block;font-size:14px}
+.gtx span{display:block;font-size:12.8px;color:var(--muted);line-height:1.5;margin-top:1px}
+.guide .go{margin-top:14px}
 .gbar{position:fixed;left:50%;transform:translateX(-50%);z-index:60;
   bottom:calc(14px + env(safe-area-inset-bottom,0px));
   display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;
@@ -284,7 +301,34 @@ h1,h2,h3{text-wrap:balance;margin:0}
   background:var(--surface);display:flex;align-items:center;justify-content:center;padding:0;color:var(--ink)}
 .gw[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
 .gw i{display:block;border-radius:50%;background:currentColor}
-.gwe{width:32px;height:32px}
+.gwe i{background:transparent!important}
+.ersl{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:61;
+  display:flex;align-items:center;gap:11px;padding:9px 16px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--line);
+  box-shadow:0 12px 34px -14px rgba(10,15,30,.5);max-width:calc(100vw - 24px)}
+.erdot{display:block;flex:0 0 auto;border-radius:50%;background:rgba(42,85,196,.16);
+  border:1.3px solid rgba(42,85,196,.5)}
+.erdot.sm{width:8px;height:8px}
+.erdot.lg{width:20px;height:20px}
+.erhr{-webkit-appearance:none;appearance:none;width:190px;height:22px;margin:0;
+  background:transparent;accent-color:var(--accent);touch-action:none}
+.erhr::-webkit-slider-runnable-track{height:5px;border-radius:3px;background:var(--line)}
+.erhr::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;
+  border-radius:50%;background:var(--accent);border:2px solid #fff;margin-top:-8.5px;
+  box-shadow:0 1px 4px rgba(10,15,30,.3)}
+.erhr::-moz-range-track{height:5px;border-radius:3px;background:var(--line)}
+.erhr::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--accent);
+  border:2px solid #fff}
+.ernum{font-size:12px;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums;
+  min-width:38px;text-align:right}
+.gpill{flex:0 0 auto;width:78px;height:32px;border-radius:16px;border:1px solid var(--line);
+  background:var(--surface);color:var(--muted);display:flex;align-items:center;
+  justify-content:center;gap:3px;padding:0;font-weight:700;font-size:12.5px}
+.gpill .pl{font-size:12px;font-weight:600}
+.gpill .pv{font-size:13px;font-weight:800}
+.gpill.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.grow .gpill{margin-top:1px}
 .fixnote{margin:0;padding:13px 16px;border-top:1px solid var(--line-soft);background:#fff7ed;
   border-left:3px solid #d97706}
 :root:not([data-theme="light"]) .fixnote{background:#2a2113}
@@ -407,8 +451,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
 
   var DATA = null, app = document.getElementById("app");
   var st = { view: "start", set: null, i: 0, showQ: true, invert: false, saved: {}, revealed: {},
-             pen: false, tool: "pen", color: 0, hcolor: 0, width: 1, erw: 1, palm: true,
-             shuf: false, seed: 1,
+             pen: false, tool: "pen", color: 0, hcolor: 0, width: 1, palm: true,
+             ermode: "px", erpx: 17,
+             shuf: false, seed: 1, guide: false,
              scope: { mode: "all" }, openSel: null, times: {}, tick: 0 };
 
   function load() {
@@ -419,9 +464,11 @@ input,textarea{-webkit-user-select:text;user-select:text}
         st.showQ = a.showQ !== false; st.invert = !!a.invert;
         st.tool = a.tool || "pen"; st.color = a.color || 0;
         st.hcolor = a.hcolor || 0; st.width = a.width == null ? 1 : a.width;
-        st.erw = a.erw == null ? 1 : a.erw;
+        st.ermode = a.ermode === "st" ? "st" : "px";
+        st.erpx = Math.min(60, Math.max(6, a.erpx || 17));
+        if (st.tool === "erp") st.tool = "er";
         st.palm = a.palm == null ? true : !!a.palm;
-        st.shuf = !!a.shuf; st.seed = a.seed || 1;
+        st.shuf = !!a.shuf; st.seed = a.seed || 1; st.guide = !!a.guide;
         if (a.scope) st.scope = a.scope;
       }
       var b = localStorage.getItem("omr.saved");
@@ -432,8 +479,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
   }
   function savePrefs() {
     try { localStorage.setItem("omr.prefs", JSON.stringify({ showQ: st.showQ, invert: st.invert,
-      tool: st.tool, color: st.color, hcolor: st.hcolor, width: st.width, erw: st.erw,
-      palm: st.palm, shuf: st.shuf, seed: st.seed,
+      tool: st.tool, color: st.color, hcolor: st.hcolor, width: st.width,
+      ermode: st.ermode, erpx: st.erpx,
+      palm: st.palm, shuf: st.shuf, seed: st.seed, guide: st.guide,
       scope: st.scope })); } catch (e) {}
   }
   function saveLocal() {
@@ -1259,9 +1307,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
     }
     if (ks.indexOf("opt") >= 0) return ["각 칸을 골라 채우시오.", "두 칸 모두 맞아야 정답입니다."];
     if (ks.indexOf("multi") < 0 && ks.indexOf("ox") < 0 && ks.indexOf("sel") < 0) {
-      return ["각 값을 구해 입력하시오.", "분수는 3/8, 소수는 0.375처럼 쓰면 됩니다."];
+      return ["각 값을 구해 입력하시오.", "분수는 약분해서 쓰세요."];
     }
-    return ["아래 칸을 모두 채우시오.", "값은 분수(3/8)나 소수(0.375)로 쓰면 되고, 모든 칸이 맞아야 정답입니다."];
+    return ["아래 칸을 모두 채우시오.", "모든 칸이 맞아야 정답입니다."];
   }
 
   /* 빈칸이 들어간 문장을 조립: "___" 자리에 컨트롤을 끼운다 */
@@ -1442,9 +1490,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
   /* ---------- 필기 (굿노트식) ---------- */
   var INK = {}, REDO = {}, UNDO = {}, INKEND = null, INKT = null;
   var PENS = ["#16181d", "#2a55c4", "#c62828", "#1b8a4b", "#7b2ff2", "#ef6c00"];
-  var HLS = ["#ffe14d", "#8ef2a8", "#9fd0ff", "#ffb3d1"];
+  var HLS = ["#ffe14d", "#ffc07a", "#8ef2a8", "#9fd0ff", "#c9b4ff", "#ffb3d1"];
   var WID = [1.6, 3, 5.5];
-  var ERW = [0.013, 0.023, 0.042];   // 지우개 반지름 (캔버스 폭 기준)
+
   function inkKey(q) { return qset(q) + "|" + key(q); }
   function inkFor(q) {
     var k = inkKey(q);
@@ -1506,6 +1554,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
     undo: ["M9 14l-4-4 4-4", "M5 10h8a5 5 0 0 1 0 10h-3"],
     redo: ["M15 14l4-4-4-4", "M19 10h-8a5 5 0 0 0 0 10h3"],
     trash: ["M5 7h14", "M9 7V5h6v2", "M7 7l1 12h8l1-12"],
+    help: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z",
+           "M9.6 9.3a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.7", "M12 16.6v.6"],
     close: ["M7 7l10 10", "M17 7L7 17"]
   };
   function toolBtn(icon, on, title, fn) {
@@ -1522,7 +1572,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     var cv = document.createElement("canvas");
     cv.className = "ink";
     wrap.appendChild(cv);
-    var cur = null, erasing = 0, capId = null;
+    var cur = null, erasing = 0, capId = null, ring = null, ringRaf = 0;
 
     function fit() {
       var r = wrap.getBoundingClientRect();
@@ -1561,11 +1611,22 @@ input,textarea{-webkit-user-select:text;user-select:text}
         g.stroke();
       });
       g.globalAlpha = 1;
+      if (ring && st.pen && st.tool === "er") {
+        var rr = erR() * u;
+        g.beginPath();
+        g.arc(ring[0] * u, ring[1] * u, rr, 0, 6.2832);
+        g.fillStyle = "rgba(42,85,196,.13)";
+        g.fill();
+        g.lineWidth = Math.max(1, 1.3 * cv._dpr);
+        g.strokeStyle = "rgba(42,85,196,.55)";
+        g.stroke();
+      }
     }
     function at(e) {
       var r = cv.getBoundingClientRect();
       return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.width];
     }
+    function erR() { return (st.erpx || 17) / (cv._w || 320); }
     function near(a, b, r) {
       return Math.abs(a[0] - b[0]) < r && Math.abs(a[1] - b[1]) < r;
     }
@@ -1577,7 +1638,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
       return qx * qx + qy * qy < r * r;
     }
     function erase(p) {                       // 획 지우개 — 닿은 획을 통째로
-      var r = ERW[st.erw] || 0.023, hit = -1;
+      var r = erR(), hit = -1;
       for (var i = rec.s.length - 1; i >= 0 && hit < 0; i--) {
         var d = rec.s[i].d;
         for (var j = 0; j < d.length; j++) {
@@ -1591,7 +1652,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
       return true;
     }
     function erasePx(p) {                     // 정밀 지우개 — 지나간 자리만
-      var r = ERW[st.erw] || 0.023, out = [], any = false;
+      var r = erR(), out = [], any = false;
       for (var i = 0; i < rec.s.length; i++) {
         var k = rec.s[i], d = k.d, touch = false;
         for (var j = 0; j < d.length && !touch; j++) {
@@ -1624,7 +1685,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
       return true;
     }
     function rub(p) {
-      return st.tool === "erp" ? erasePx(p) : erase(p);
+      return st.ermode === "px" ? erasePx(p) : erase(p);
     }
     // 진행 중인 획은 전체를 다시 그리지 않고 새 구간만 덧그린다 (펜 반응 속도)
     var drawn = 0;
@@ -1654,9 +1715,11 @@ input,textarea{-webkit-user-select:text;user-select:text}
       try { cv.setPointerCapture(e.pointerId); } catch (err) {}
       capId = e.pointerId;
       var p = at(e);
-      if (st.tool === "er" || st.tool === "erp") {
+      if (st.tool === "er") {
         cur = "er"; erasing = 0;
-        if (rub(p)) paint();
+        ring = p;
+        rub(p);
+        paint();
         return;
       }
       pushUndo(q);
@@ -1685,7 +1748,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
         if (Math.abs(p[0] - last[0]) + Math.abs(p[1] - last[1]) < 0.0008) continue;
         cur.d.push(p);
       }
-      if (cur === "er") { if (changed) paint(); }
+      if (cur === "er") { ring = at(e); paint(); }
       else tail();
     }, { passive: false });
     function end() {
@@ -1698,6 +1761,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
         var was = cur;
         cur = null;
         erasing = 0;
+        ring = null;
         paint();
         saveInkSoon();
         if (was !== "er" && (!was.d || was.d.length < 1)) { /* noop */ }
@@ -1705,6 +1769,16 @@ input,textarea{-webkit-user-select:text;user-select:text}
     }
     cv.addEventListener("pointerup", end);
     cv.addEventListener("pointercancel", end);
+    cv.addEventListener("pointermove", function (e) {
+      if (cur || !st.pen || st.tool !== "er") return;
+      if (e.pointerType === "touch" && !st.palm) return;
+      ring = at(e);
+      if (ringRaf) return;
+      ringRaf = requestAnimationFrame(function () { ringRaf = 0; paint(); });
+    });
+    cv.addEventListener("pointerleave", function () {
+      if (!cur && ring) { ring = null; paint(); }
+    });
     cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
     function blockTouch(e) {
       if (!st.pen || st.tool === "hand") return false;
@@ -1726,52 +1800,112 @@ input,textarea{-webkit-user-select:text;user-select:text}
     return cv;
   }
 
+  var GUIDE = [
+    ["hand", "손 (화면 넘기기)", "필기를 잠시 멈춥니다. 펜이 먹지 않으니 화면을 자유롭게 밀어 올리거나 내릴 수 있습니다. 다시 쓰려면 펜을 고르세요."],
+    ["@palm", "손 인식 O / X", "O면 손가락으로도 써집니다. X로 두면 애플펜슬로만 써지고 손가락은 화면 넘기기가 됩니다 — 글씨 쓰다 손바닥이 닿아도 줄이 그어지지 않습니다. 눌러서 바꿉니다."]
+  ];
+  function erPanel() {
+    var box = el("div", "ersl");
+    box.appendChild(el("i", "erdot sm"));
+    var inp = document.createElement("input");
+    inp.type = "range"; inp.min = "6"; inp.max = "60"; inp.step = "1";
+    inp.value = String(st.erpx || 17);
+    inp.className = "erhr";
+    inp.setAttribute("aria-label", "지우개 크기");
+    box.appendChild(inp);
+    box.appendChild(el("i", "erdot lg"));
+    var num = el("span", "ernum", (st.erpx || 17) + "px");
+    box.appendChild(num);
+    inp.oninput = function () {
+      st.erpx = Math.min(60, Math.max(6, parseInt(inp.value, 10) || 17));
+      num.textContent = st.erpx + "px";
+      savePrefs();
+      repaint();
+    };
+    inp.onchange = inp.oninput;
+    return box;
+  }
+  function palmBtn(fn) {
+    var b = el("button", "gpill" + (st.palm ? " on" : ""));
+    b.type = "button";
+    b.title = st.palm ? "손 인식 O — 손가락으로도 써집니다 (누르면 펜슬만)"
+                      : "손 인식 X — 애플펜슬만 써지고 손가락은 화면 넘기기 (누르면 손도 허용)";
+    b.setAttribute("aria-label", b.title);
+    b.appendChild(el("span", "pl", "손 인식"));
+    b.appendChild(el("span", "pv", st.palm ? "O" : "X"));
+    if (fn) b.onclick = fn;
+    return b;
+  }
+  function guideCard() {
+    var wrap = el("div", "guidewrap");
+    var c = el("div", "guide");
+    c.appendChild(el("b", null, "손 관련 도구 두 가지"));
+    GUIDE.forEach(function (g) {
+      var row = el("div", "grow");
+      if (g[0] === "@palm") {
+        row.appendChild(palmBtn(null));
+      } else {
+        var ic = el("span", "gic");
+        ic.appendChild(svg(ICON[g[0]]));
+        row.appendChild(ic);
+      }
+      var tx = el("div", "gtx");
+      tx.appendChild(el("b", null, g[1]));
+      tx.appendChild(el("span", null, g[2]));
+      row.appendChild(tx);
+      c.appendChild(row);
+    });
+    var ok = el("button", "go", "알겠습니다");
+    ok.type = "button";
+    ok.onclick = function () { st.guide = true; savePrefs(); render(); };
+    c.appendChild(ok);
+    wrap.appendChild(c);
+    wrap.onclick = function (e) { if (e.target === wrap) { st.guide = true; savePrefs(); render(); } };
+    return wrap;
+  }
+
   function penBar(q) {
     var rec = inkFor(q), bar = el("div", "gbar");
     function re() { render(); }
     bar.appendChild(toolBtn("pen", st.tool === "pen", "펜", function () { st.tool = "pen"; setPen(); savePrefs(); re(); }));
     bar.appendChild(toolBtn("hl", st.tool === "hl", "형광펜", function () { st.tool = "hl"; setPen(); savePrefs(); re(); }));
-    bar.appendChild(toolBtn("er", st.tool === "er", "획 지우개 — 닿은 획을 통째로",
-      function () { st.tool = "er"; setPen(); savePrefs(); re(); }));
-    bar.appendChild(toolBtn("erp", st.tool === "erp", "정밀 지우개 — 지나간 자리만",
-      function () { st.tool = "erp"; setPen(); savePrefs(); re(); }));
+    var erOn = st.tool === "er", px = st.ermode === "px";
+    bar.appendChild(toolBtn(px ? "erp" : "er", erOn,
+      (px ? "정밀 지우개 — 지나간 자리만" : "획 지우개 — 닿은 획을 통째로")
+      + (erOn ? " · 다시 누르면 " + (px ? "획 지우개" : "정밀 지우개") : ""),
+      function () {
+        if (erOn) st.ermode = px ? "st" : "px";
+        st.tool = "er";
+        setPen(); savePrefs(); re();
+      }));
     bar.appendChild(toolBtn("hand", st.tool === "hand", "손 (화면 넘기기)", function () { st.tool = "hand"; setPen(); savePrefs(); re(); }));
     bar.appendChild(el("div", "gsep"));
-    bar.appendChild(toolBtn(st.palm ? "palm" : "palmx", st.palm,
-      st.palm ? "손 인식 O — 손가락으로도 써집니다 (누르면 펜슬만)"
-              : "손 인식 X — 애플펜슬만 써지고 손가락은 화면 넘기기 (누르면 손도 허용)",
-      function () { st.palm = !st.palm; setPen(); savePrefs(); re(); }));
+    bar.appendChild(palmBtn(function () { st.palm = !st.palm; setPen(); savePrefs(); re(); }));
     bar.appendChild(el("div", "gsep"));
     var list = st.tool === "hl" ? HLS : PENS;
     var sel = st.tool === "hl" ? st.hcolor : st.color;
     list.forEach(function (c, i) {
       var b = el("button", "sw2");
       b.type = "button"; b.title = "색";
-      b.setAttribute("aria-pressed", i === sel && st.tool !== "er" && st.tool !== "erp"
-        ? "true" : "false");
+      b.setAttribute("aria-pressed", i === sel && st.tool !== "er" ? "true" : "false");
       var d = el("i"); d.style.background = c; b.appendChild(d);
       b.onclick = function () {
-        if (st.tool === "er" || st.tool === "erp" || st.tool === "hand") st.tool = "pen";
+        if (st.tool === "er" || st.tool === "hand") st.tool = "pen";
         if (st.tool === "hl") st.hcolor = i; else st.color = i;
         setPen(); savePrefs(); re();
       };
       bar.appendChild(b);
     });
     bar.appendChild(el("div", "gsep"));
-    var isEr = st.tool === "er" || st.tool === "erp";
     [0, 1, 2].forEach(function (i) {
-      var b = el("button", "gw" + (isEr ? " gwe" : ""));
-      b.type = "button"; b.title = isEr ? "지우개 크기" : "굵기";
-      b.setAttribute("aria-pressed", (isEr ? st.erw : st.width) === i ? "true" : "false");
+      var b = el("button", "gw");
+      b.type = "button"; b.title = "굵기";
+      b.setAttribute("aria-pressed", st.width === i ? "true" : "false");
       var d = el("i");
-      var px = (isEr ? [9, 14, 20] : [4, 7, 11])[i];
-      d.style.width = px + "px"; d.style.height = px + "px";
-      if (isEr) { d.style.background = "transparent"; d.style.border = "1.6px solid currentColor"; }
+      var wpx = [4, 7, 11][i];
+      d.style.width = wpx + "px"; d.style.height = wpx + "px";
       b.appendChild(d);
-      b.onclick = function () {
-        if (isEr) st.erw = i; else st.width = i;
-        savePrefs(); re();
-      };
+      b.onclick = function () { st.width = i; savePrefs(); re(); };
       bar.appendChild(b);
     });
     bar.appendChild(el("div", "gsep"));
@@ -1796,6 +1930,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
       saveInk(); repaint();
     }));
     bar.appendChild(el("div", "gsep"));
+    bar.appendChild(toolBtn("help", null, "도구 설명", function () {
+      st.guide = false; savePrefs(); re();
+    }));
     bar.appendChild(toolBtn("close", null, "필기 끄기", function () {
       st.pen = false; setPen(); savePrefs(); re();
     }));
@@ -1910,8 +2047,11 @@ input,textarea{-webkit-user-select:text;user-select:text}
     w.appendChild(pg);
 
     var jump = el("div", "jump");
-    list.forEach(function (rr, j) {
-      if (rr.p !== q.p) return;
+    var order = list.map(function (rr, j) { return { r: rr, j: j }; })
+      .filter(function (x) { return x.r.p === q.p; })
+      .sort(function (a, b) { return a.r.n - b.r.n; });
+    order.forEach(function (x) {
+      var rr = x.r, j = x.j;
       var b = el("button", "jb", String(rr.n));
       b.type = "button";
       var m = (st.saved[st.set] || {})[rr.p + "-" + rr.n];
@@ -1925,6 +2065,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
     w.appendChild(el("p", "foot", "← → 로 문항 이동 · Enter로 제출"));
     frag.appendChild(w);
     if (st.pen) frag.appendChild(penBar(q));
+    if (st.pen && st.tool === "er" && st.ermode === "px") frag.appendChild(erPanel());
+    if (st.pen && !st.guide) frag.appendChild(guideCard());
     return frag;
   }
 
