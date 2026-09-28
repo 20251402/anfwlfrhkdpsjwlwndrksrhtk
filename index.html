@@ -103,8 +103,15 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
   box-shadow:var(--shadow);overflow:hidden;margin-top:14px}
 /* ---- 문제 본문 (텍스트 조판) ---- */
+/* 문제지는 늘 흰 종이에 검은 글씨 — 기기가 다크 모드여도 글자가 흐려지지 않게
+   색을 이 안에서 다시 정한다. '문제 반전'을 켜면 반대로 뒤집는다. */
 .paper{background:var(--paper);padding:16px 15px 18px;overflow-x:auto;
-  font-size:15.5px;line-height:1.75;color:var(--ink);word-break:keep-all;overflow-wrap:anywhere}
+  font-size:15.5px;line-height:1.75;word-break:keep-all;overflow-wrap:anywhere;
+  --ink:#161a21; --muted:#5d6675; --faint:#8a93a2;
+  --line:#d3d9e2; --line-soft:#e4e8ee; --surface-2:#f4f6f9;
+  color:var(--ink)}
+:root[data-invert="1"] .paper{--ink:#e6e9ef; --muted:#9aa4b4; --faint:#6d7787;
+  --line:#2b313d; --line-soft:#232935; --surface-2:#1f242e}
 .qp{margin:0 0 9px}
 .qp:last-child{margin-bottom:0}
 .qc{text-align:center;margin:12px 0}
