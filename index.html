@@ -426,6 +426,24 @@ h1,h2,h3{text-wrap:balance;margin:0}
 .loginerr{margin-top:12px;padding:10px 12px;border-radius:9px;background:var(--bad-soft);
   color:var(--bad);font-size:13px;font-weight:500;line-height:1.5}
 .ghost.wide{width:100%;padding:11px;margin-top:10px}
+.resume{margin:0 0 20px;background:var(--surface);border:1px solid var(--line);
+  border-left:3px solid var(--ok);border-radius:var(--r);padding:15px 16px 16px;
+  display:flex;flex-direction:column;gap:11px}
+.resume .rh{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.resume .rh b{font-size:15px;letter-spacing:-.01em}
+.resume .rh span{font-size:12.5px;color:var(--faint)}
+.resume p{margin:0;font-size:13px;color:var(--muted);line-height:1.6}
+.resume .rr{display:flex;gap:8px}
+.resume .rr button{flex:1;padding:11px 12px;border-radius:9px;font-size:14px;font-weight:600;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.resume .rr button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.resume .rr button.thin{flex:0 0 auto;font-weight:500;color:var(--muted)}
+.inkwarn{margin:0 0 10px;padding:10px 12px;border-radius:9px;font-size:12.5px;line-height:1.6;
+  background:rgba(255,193,7,.14);border:1px solid rgba(255,193,7,.45);color:var(--ink);
+  display:flex;align-items:center;gap:10px}
+.inkwarn span{flex:1}
+.inkwarn button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);color:var(--muted);
+  border-radius:7px;padding:5px 9px;font-size:12px;cursor:pointer}
 .examcard{margin-top:22px;background:var(--surface);border:1px solid var(--line);
   border-left:3px solid var(--accent);border-radius:var(--r);padding:16px 18px}
 .examcard b{display:block;font-size:15px;letter-spacing:-.01em;margin-bottom:6px}
@@ -459,7 +477,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
   var DATA = null, app = document.getElementById("app");
   var st = { view: "start", set: null, i: 0, showQ: true, invert: false, saved: {}, revealed: {},
              pen: false, tool: "pen", color: 0, hcolor: 0, width: 1, palm: true,
-             ermode: "px", erpx: 17,
+             ermode: "px", erpx: 17, autoclr: true,
              shuf: false, seed: 1, guide: false,
              scope: { mode: "all" }, openSel: null, times: {}, tick: 0 };
 
@@ -476,6 +494,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
         if (st.tool === "erp") st.tool = "er";
         if (st.tool === "hand") st.tool = "pen";
         st.palm = a.palm == null ? true : !!a.palm;
+        st.autoclr = a.autoclr == null ? true : !!a.autoclr;
+        st.pen = !!a.pen;
         st.shuf = !!a.shuf; st.seed = a.seed || 1; st.guide = !!a.guide;
         if (a.scope) st.scope = a.scope;
       }
@@ -488,9 +508,45 @@ input,textarea{-webkit-user-select:text;user-select:text}
   function savePrefs() {
     try { localStorage.setItem("omr.prefs", JSON.stringify({ showQ: st.showQ, invert: st.invert,
       tool: st.tool, color: st.color, hcolor: st.hcolor, width: st.width,
-      ermode: st.ermode, erpx: st.erpx,
+      ermode: st.ermode, erpx: st.erpx, autoclr: st.autoclr, pen: st.pen,
       palm: st.palm, shuf: st.shuf, seed: st.seed, guide: st.guide,
       scope: st.scope })); } catch (e) {}
+  }
+
+  /* ---------- 이어서 풀기 (창을 닫거나 자리를 비워도 자리 기억) ---------- */
+  var SESS = null;
+  function loadSess() {
+    try {
+      var a = localStorage.getItem("omr.sess");
+      if (a) { a = JSON.parse(a); if (a && a.set) SESS = a; }
+    } catch (e) {}
+  }
+  function saveSess() {
+    if (st.view !== "quiz" || !st.set) return;
+    var list = activeList(), q = list[st.i];
+    if (!q) return;
+    SESS = { set: st.set, i: st.i, key: q.p + "-" + q.n, scope: st.scope,
+             shuf: st.shuf, seed: st.seed, ts: Date.now() };
+    try { localStorage.setItem("omr.sess", JSON.stringify(SESS)); } catch (e) {}
+  }
+  function clearSess() {
+    SESS = null;
+    try { localStorage.removeItem("omr.sess"); } catch (e) {}
+  }
+  function resumeSess() {
+    var s = SESS;
+    if (!s) return;
+    st.set = s.set;
+    if (s.scope) st.scope = s.scope;
+    st.shuf = !!s.shuf; st.seed = s.seed || 1;
+    savePrefs();
+    var list = activeList(), at2 = -1;
+    for (var j = 0; j < list.length; j++) {
+      if (list[j].p + "-" + list[j].n === s.key) { at2 = j; break; }
+    }
+    st.i = at2 >= 0 ? at2 : Math.min(Math.max(0, s.i || 0), Math.max(0, list.length - 1));
+    st.openSel = null; st.tick = Date.now();
+    st.view = "quiz"; render(); window.scrollTo(0, 0);
   }
   function saveLocal() {
     try {
@@ -705,6 +761,52 @@ input,textarea{-webkit-user-select:text;user-select:text}
   }
 
   /* ---------- start ---------- */
+  function whenTxt(t) {
+    if (!t) return "";
+    var d = new Date(t), now = new Date(), mm = (now - d) / 60000;
+    if (mm < 1) return "방금";
+    if (mm < 60) return Math.round(mm) + "분 전";
+    var same = d.toDateString() === now.toDateString();
+    var hh = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+    return (same ? "오늘 " : (d.getMonth() + 1) + "월 " + d.getDate() + "일 ") + hh;
+  }
+  // 창을 닫거나 자리를 비워 중간에 끊긴 세트를 그 문항에서 다시 잇는다
+  function resumeCard() {
+    if (!SESS || !DATA || !DATA[SESS.set]) return null;
+    var keep = { set: st.set, scope: st.scope, shuf: st.shuf, seed: st.seed };
+    var list, tot, d, lab, at2 = -1, q;
+    try {
+      st.set = SESS.set; if (SESS.scope) st.scope = SESS.scope;
+      st.shuf = !!SESS.shuf; st.seed = SESS.seed || 1;
+      list = activeList(); tot = list.length; d = doneIn(SESS.set); lab = scopeLabel();
+      for (var j = 0; j < list.length; j++) {
+        if (list[j].p + "-" + list[j].n === SESS.key) { at2 = j; break; }
+      }
+      q = list[at2 >= 0 ? at2 : 0];
+    } catch (e) { q = null; }
+    st.set = keep.set; st.scope = keep.scope; st.shuf = keep.shuf; st.seed = keep.seed;
+    if (!q || !tot || d.n >= tot) return null;          // 다 푼 세트면 이어 풀 것이 없다
+    var c = el("div", "resume");
+    var h = el("div", "rh");
+    h.appendChild(el("b", null, "풀던 세트가 있습니다"));
+    h.appendChild(el("span", null, whenTxt(SESS.ts)));
+    c.appendChild(h);
+    c.appendChild(el("p", null,
+      nameOf(SESS.set) + " · " + lab + " · " + q.p + "탄 " + q.n + "번"
+      + " (" + ((at2 >= 0 ? at2 : 0) + 1) + "/" + tot + "번째"
+      + (d.n ? " · " + d.n + "문항 제출" : "") + ")"));
+    var rr = el("div", "rr");
+    var go2 = el("button", "on", "이어서 풀기");
+    go2.type = "button";
+    go2.onclick = function () { resumeSess(); };
+    rr.appendChild(go2);
+    var no = el("button", "thin", "닫기");
+    no.type = "button";
+    no.onclick = function () { clearSess(); render(); };
+    rr.appendChild(no);
+    c.appendChild(rr);
+    return c;
+  }
   function viewStart() {
     var w = el("div", "wrap"), hero = el("div", "hero");
     var eb = el("p", "eyebrow", "2026-2 환일고 중간고사 · " + (auth.user ? auth.user.name : ""));
@@ -713,6 +815,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
     hero.appendChild(el("p", null,
       "한 화면에 한 문항. 답을 표시하고 제출하면 바로 채점하고, 해설은 원할 때만 펼칩니다."));
     w.appendChild(hero);
+    var rc = resumeCard();
+    if (rc) w.appendChild(rc);
     w.appendChild(el("p", "sec-label", "세트 선택"));
     var grid = el("div", "sets");
     SETS.forEach(function (s) {
@@ -736,6 +840,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
       st.showQ, function (v) { st.showQ = v; savePrefs(); }));
     opts.appendChild(toggleRow("문제 순서 섞기", "고른 범위 안에서 순서를 무작위로 바꿉니다. 시작할 때마다 새로 섞입니다.",
       st.shuf, function (v) { st.shuf = v; st.seed = (Date.now() & 0x7fffffff) || 1; savePrefs(); render(); }));
+    opts.appendChild(toggleRow("문항을 넘기면 필기 지우기",
+      "다음 문항으로 넘어갈 때 앞 문항에 쓴 풀이를 지웁니다. 필기가 쌓여 느려지거나 멈추는 것을 막아 줍니다.",
+      st.autoclr, function (v) { st.autoclr = v; savePrefs(); }));
     opts.appendChild(toggleRow("어두운 화면에서 문제 반전", "밤에 볼 때 흰 바탕의 눈부심을 줄입니다.",
       st.invert, function (v) { st.invert = v; setTheme(); savePrefs(); }));
     w.appendChild(opts);
@@ -886,6 +993,10 @@ input,textarea{-webkit-user-select:text;user-select:text}
   function doLogout() {
     api("/logout", { method: "POST" });
     st.saved = {}; st.times = {};
+    clearSess();
+    INK = {}; UNDO = {}; REDO = {};
+    var ks = inkKeys();
+    for (var i = 0; i < ks.length; i++) { try { localStorage.removeItem(ks[i]); } catch (e) {} }
     signedOut("");
   }
 
@@ -1496,33 +1607,147 @@ input,textarea{-webkit-user-select:text;user-select:text}
   }
 
   /* ---------- 필기 (굿노트식) ---------- */
+  // 필기는 문항별로 따로 저장한다. 예전처럼 한 덩어리로 묶어 두면 한 획을 그을 때마다
+  // 그때까지 쓴 모든 문항을 다시 문자열로 바꿔야 해서, 조금 쓰다 보면 화면이 멈춘다.
   var INK = {}, REDO = {}, UNDO = {}, INKEND = null, INKT = null;
+  var IKP = "omr.ink.", INKFULL = "", INKBIG = false, PTMAX = 45000;
+  var FULLHARD = "필기가 너무 많아 저장하지 못했습니다. 다 본 풀이는 지워 주세요.";
+  var BIGMSG = "이 문항에 필기가 많이 쌓였습니다. 다 본 풀이를 지우면 더 매끄럽게 써집니다.";
+  function inkMsg() { return INKFULL || (INKBIG ? BIGMSG : ""); }
   var PENS = ["#16181d", "#2a55c4", "#c62828", "#1b8a4b", "#7b2ff2", "#ef6c00"];
   var HLS = ["#ffe14d", "#ffc07a", "#8ef2a8", "#9fd0ff", "#c9b4ff", "#ffb3d1"];
   var WID = [1.6, 3, 5.5];
 
+  function qz(v) { return Math.round(v * 1e4) / 1e4; }
+  // 거의 직선인 구간의 중간 점은 빼도 모양이 같다 — 점 수를 절반 가까이 줄인다
+  function thin(d) {
+    if (d.length < 3) return d;
+    var eps = 0.00035, out = [d[0]], a = d[0];
+    for (var i = 1; i < d.length - 1; i++) {
+      var b = d[i], c = d[i + 1];
+      var dx = c[0] - a[0], dy = c[1] - a[1], L = Math.sqrt(dx * dx + dy * dy);
+      var far = L ? Math.abs((b[0] - a[0]) * dy - (b[1] - a[1]) * dx) / L
+                  : Math.abs(b[0] - a[0]) + Math.abs(b[1] - a[1]);
+      if (far < eps && L < 0.05) continue;
+      out.push(b); a = b;
+    }
+    out.push(d[d.length - 1]);
+    return out;
+  }
+  function shrink(k) {                        // 좌표를 소수 넷째 자리로 — 크기가 1/2 아래로 준다
+    if (!k || !Array.isArray(k.d)) return k;
+    var d = [], last = null;
+    for (var i = 0; i < k.d.length; i++) {
+      var p = [qz(k.d[i][0]), qz(k.d[i][1])];
+      if (last && p[0] === last[0] && p[1] === last[1]) continue;
+      d.push(p); last = p;
+    }
+    k.d = thin(d);
+    if (typeof k.w === "number") k.w = Math.round(k.w * 1e5) / 1e5;
+    return k;
+  }
+  function pts(r) {
+    var n = 0;
+    for (var i = 0; i < r.s.length; i++) n += r.s[i].d.length;
+    return n;
+  }
+
   function inkKey(q) { return qset(q) + "|" + key(q); }
   function inkFor(q) {
-    var k = inkKey(q);
-    if (!INK[k]) INK[k] = { h: 0, s: [] };
-    return INK[k];
+    var k = inkKey(q), r = INK[k];
+    if (r) return r;
+    try { var s = localStorage.getItem(IKP + k); if (s) r = JSON.parse(s); } catch (e) {}
+    if (!r || typeof r !== "object") r = { h: 0, s: [] };
+    if (!Array.isArray(r.s)) r.s = [];
+    INK[k] = r;
+    return r;
   }
   function loadInk() {
-    try { var a = localStorage.getItem("omr.ink"); if (a) INK = JSON.parse(a) || {}; } catch (e) {}
+    // 예전 판에서 한 덩어리로 저장해 둔 필기가 있으면 문항별로 쪼개 옮긴다
+    var old = null;
+    try { old = localStorage.getItem("omr.ink"); } catch (e) {}
+    if (!old) return;
+    try {
+      var o = JSON.parse(old) || {};
+      for (var k in o) {
+        var r = o[k];
+        if (!r || !Array.isArray(r.s)) continue;
+        r.s = r.s.map(shrink);
+        if (!r.s.length && !r.h) continue;
+        try { localStorage.setItem(IKP + k, JSON.stringify(r)); } catch (e2) {}
+      }
+    } catch (e3) {}
+    try { localStorage.removeItem("omr.ink"); } catch (e4) {}
+  }
+  function inkKeys() {
+    var out = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var nk = localStorage.key(i);
+        if (nk && nk.indexOf(IKP) === 0) out.push(nk);
+      }
+    } catch (e) {}
+    return out;
+  }
+  function putInk(k) {
+    var r = INK[k];
+    if (!r) return;
+    try {
+      if (!r.s.length && !r.h) { localStorage.removeItem(IKP + k); return; }
+      localStorage.setItem(IKP + k, JSON.stringify(r));
+      if (INKFULL === FULLHARD) INKFULL = "";       // 이제 저장이 되니 경고를 내린다
+    } catch (e) {
+      // 저장 공간이 찼다 — 지금 보고 있지 않은 문항의 필기를 비워 자리를 만든다
+      var ks = inkKeys(), freed = 0;
+      for (var j = 0; j < ks.length; j++) {
+        if (ks[j] === IKP + k) continue;
+        try { localStorage.removeItem(ks[j]); } catch (e2) {}
+        delete INK[ks[j].slice(IKP.length)];
+        freed++;
+      }
+      try {
+        localStorage.setItem(IKP + k, JSON.stringify(r));
+        if (freed) INKFULL = "저장 공간이 부족해 다른 문항에 남아 있던 필기를 지웠습니다.";
+      } catch (e3) {
+        INKFULL = FULLHARD;
+      }
+    }
   }
   function saveInk() {
     if (INKT) { clearTimeout(INKT); INKT = null; }
-    try { localStorage.setItem("omr.ink", JSON.stringify(INK)); } catch (e) {}
+    for (var k in INK) putInk(k);
   }
-  // 획을 뗄 때마다 통째로 저장하면 펜이 다음 획을 놓친다 — 조금 미뤘다 한 번만 저장
+  // 획을 뗄 때마다 저장하면 펜이 다음 획을 놓친다 — 조금 미뤘다 한 번만 저장
   function saveInkSoon() {
     if (INKT) return;
-    INKT = setTimeout(function () { INKT = null; saveInk(); }, 600);
+    INKT = setTimeout(function () { INKT = null; saveInk(); inkWarnSync(); }, 600);
+  }
+  var INKWARN0 = "";
+  function inkWarnSync() {                    // 안내 문구가 바뀐 때만 화면을 다시 그린다
+    if (inkMsg() === INKWARN0) return;
+    INKWARN0 = inkMsg();
+    if (st.view === "quiz") render();
+  }
+  // 문항을 벗어날 때 — 설정에 따라 필기를 지우고, 어느 쪽이든 메모리에서 내려놓는다
+  function leaveInk() {
+    if (st.view !== "quiz" || !st.set || !DATA) return;
+    var list = activeList(), q = list[st.i];
+    if (!q) return;
+    var k = inkKey(q);
+    INKFULL = ""; INKBIG = false; INKWARN0 = "";
+    if (st.autoclr) {
+      delete INK[k];
+      try { localStorage.removeItem(IKP + k); } catch (e) {}
+    } else if (INK[k]) {
+      putInk(k);
+      delete INK[k];
+    }
+    delete UNDO[k]; delete REDO[k];
   }
   function pushUndo(q) {
     var k = inkKey(q), r = inkFor(q);
     (UNDO[k] = UNDO[k] || []).push(r.s.slice());
-    if (UNDO[k].length > 60) UNDO[k].shift();
+    if (UNDO[k].length > 24) UNDO[k].shift();
     REDO[k] = [];
   }
   function setPen() {
@@ -1623,7 +1848,27 @@ input,textarea{-webkit-user-select:text;user-select:text}
     }
     function at(e) {
       var r = cv.getBoundingClientRect();
-      return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.width];
+      // 소수 넷째 자리까지만 — 폭 700px에서 0.07px, 눈으로 같은 선인데 저장 크기는 절반 이하
+      return [qz((e.clientX - r.left) / r.width), qz((e.clientY - r.top) / r.width)];
+    }
+    // 지우개가 닿을 수 없는 획은 점을 하나도 따지지 않고 건너뛴다 (획이 쌓여도 안 느려지게)
+    var BB = (typeof WeakMap === "function") ? new WeakMap() : null;
+    function box(k) {
+      var b = BB && BB.get(k);
+      if (b) return b;
+      var d = k.d, x0 = d[0][0], y0 = d[0][1], x1 = x0, y1 = y0;
+      for (var i = 1; i < d.length; i++) {
+        var p = d[i];
+        if (p[0] < x0) x0 = p[0]; else if (p[0] > x1) x1 = p[0];
+        if (p[1] < y0) y0 = p[1]; else if (p[1] > y1) y1 = p[1];
+      }
+      b = [x0, y0, x1, y1];
+      if (BB) BB.set(k, b);
+      return b;
+    }
+    function farOut(k, p, r) {
+      var b = box(k);
+      return p[0] < b[0] - r || p[0] > b[2] + r || p[1] < b[1] - r || p[1] > b[3] + r;
     }
     function erR() { return (st.erpx || 17) / (cv._w || 320); }
     function near(a, b, r) {
@@ -1639,6 +1884,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     function erase(p) {                       // 획 지우개 — 닿은 획을 통째로
       var r = erR(), hit = -1;
       for (var i = rec.s.length - 1; i >= 0 && hit < 0; i--) {
+        if (farOut(rec.s[i], p, r)) continue;
         var d = rec.s[i].d;
         for (var j = 0; j < d.length; j++) {
           if (near(d[j], p, r)) { hit = i; break; }
@@ -1654,6 +1900,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
       var r = erR(), out = [], any = false;
       for (var i = 0; i < rec.s.length; i++) {
         var k = rec.s[i], d = k.d, touch = false;
+        if (farOut(k, p, r)) { out.push(k); continue; }
         for (var j = 0; j < d.length && !touch; j++) {
           if (near(d[j], p, r) || (j && segNear(d[j - 1], d[j], p, r))) touch = true;
         }
@@ -1744,11 +1991,13 @@ input,textarea{-webkit-user-select:text;user-select:text}
         var p = at(evs[i]);
         if (cur === "er") { if (rub(p)) changed = true; continue; }
         var last = cur.d[cur.d.length - 1];
-        if (Math.abs(p[0] - last[0]) + Math.abs(p[1] - last[1]) < 0.0008) continue;
+        if (Math.abs(p[0] - last[0]) + Math.abs(p[1] - last[1]) < 0.0016) continue;
         cur.d.push(p);
       }
-      if (cur === "er") { ring = st.ermode === "px" ? at(e) : null; paint(); }
-      else tail();
+      if (cur === "er") {
+        ring = st.ermode === "px" ? at(e) : null;
+        if (!ringRaf) ringRaf = requestAnimationFrame(function () { ringRaf = 0; paint(); });
+      } else tail();
     }, { passive: false });
     function end() {
       if (capId != null) {
@@ -1761,9 +2010,10 @@ input,textarea{-webkit-user-select:text;user-select:text}
         cur = null;
         erasing = 0;
         ring = null;
+        if (was !== "er" && was.d) shrink(was);   // 저장 전에 점 솎아내기
         paint();
+        INKBIG = pts(rec) > PTMAX;
         saveInkSoon();
-        if (was !== "er" && (!was.d || was.d.length < 1)) { /* noop */ }
       }
     }
     cv.addEventListener("pointerup", end);
@@ -1947,7 +2197,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     var top = el("div", "topbar"), tin = el("div", "topin");
     var back = el("button", "ghost", "세트");
     back.type = "button";
-    back.onclick = function () { st.view = "start"; render(); window.scrollTo(0, 0); };
+    back.onclick = function () { leaveQuiz("start"); };
     var id = el("div", "qid");
     id.appendChild(document.createTextNode(q.p + "탄 " + q.n + "번"));
     id.appendChild(el("span", null, "  " + (st.i + 1) + "/" + list.length));
@@ -1959,13 +2209,22 @@ input,textarea{-webkit-user-select:text;user-select:text}
     pen.onclick = function () { st.pen = !st.pen; setPen(); savePrefs(); render(); };
     var res = el("button", "ghost", "결과");
     res.type = "button";
-    res.onclick = function () { st.view = "result"; render(); window.scrollTo(0, 0); };
+    res.onclick = function () { leaveQuiz("result"); };
     tin.appendChild(back); tin.appendChild(id); tin.appendChild(pr);
     tin.appendChild(pen); tin.appendChild(res);
     top.appendChild(tin); frag.appendChild(top);
 
     st.tick = st.tick || Date.now();
     var w = el("div", "wrap"), card = el("div", "card");
+    if (inkMsg()) {
+      var wn = el("div", "inkwarn");
+      wn.appendChild(el("span", null, inkMsg()));
+      var wx = el("button", null, "닫기");
+      wx.type = "button";
+      wx.onclick = function () { INKFULL = ""; INKBIG = false; INKWARN0 = ""; render(); };
+      wn.appendChild(wx);
+      w.appendChild(wn);
+    }
     var rec0 = inkFor(q);
     var wrapIn = el("div", "inkwrap");
     if (st.showQ) {
@@ -2043,7 +2302,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     var next = el("button", null, st.i === last ? "결과 보기 →" : "다음 →");
     next.type = "button";
     next.onclick = function () {
-      if (st.i === last) { st.view = "result"; render(); window.scrollTo(0, 0); } else move(1);
+      if (st.i === last) leaveQuiz("result"); else move(1);
     };
     pg.appendChild(prev); pg.appendChild(next);
     w.appendChild(pg);
@@ -2059,7 +2318,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
       var m = (st.saved[st.set] || {})[rr.p + "-" + rr.n];
       if (m && m.tried) b.classList.add(m.ok ? "done-o" : "done-x");
       if (j === st.i) b.classList.add("cur");
-      b.onclick = function () { st.i = j; st.openSel = null; render(); window.scrollTo(0, 0); };
+      b.onclick = function () { goTo(j); };
       jump.appendChild(b);
     });
     w.appendChild(el("p", "sec-label", PARTS[q.p]));
@@ -2075,8 +2334,18 @@ input,textarea{-webkit-user-select:text;user-select:text}
   function move(d) {
     var n = st.i + d, len = activeList().length;
     if (n < 0 || n > len - 1) return;
-    saveInk();
-    st.i = n; st.openSel = null; st.tick = Date.now(); render(); window.scrollTo(0, 0);
+    goTo(n);
+  }
+  // 문항을 옮길 때는 한 곳으로 모은다 — 필기 정리와 "이어서 풀기" 자리 기억을 빠뜨리지 않게
+  function goTo(n) {
+    saveInk(); leaveInk();
+    st.i = n; st.openSel = null; st.tick = Date.now();
+    saveSess(); render(); window.scrollTo(0, 0);
+  }
+  function leaveQuiz(v) {
+    saveInk(); leaveInk();
+    if (v !== "quiz") st.view = v;
+    render(); window.scrollTo(0, 0);
   }
   function reset(q) {
     st.saved[st.set][key(q)] = { ok: 0, tried: 0, hf: 0, cur: blank(q), g: {}, b: {} };
@@ -2226,7 +2495,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     if (st.view === "pw") { app.appendChild(viewPw()); return; }
     if (!auth.user) { app.appendChild(viewLogin()); return; }
     if (st.view === "start") app.appendChild(viewStart());
-    else if (st.view === "quiz") app.appendChild(viewQuiz());
+    else if (st.view === "quiz") { app.appendChild(viewQuiz()); saveSess(); }
     else app.appendChild(viewResult());
     if (keep) {
       window.scrollTo(0, y);
@@ -2236,9 +2505,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
   // 펜을 캔버스 밖에서 떼도 획이 끝나도록 — 한 번만 등록한다 (렌더마다 쌓이면 펜이 먹통)
   window.addEventListener("pointerup", function () { if (INKEND) INKEND(); });
   window.addEventListener("pointercancel", function () { if (INKEND) INKEND(); });
-  window.addEventListener("pagehide", saveInk);
+  window.addEventListener("pagehide", function () { saveInk(); saveSess(); });
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") saveInk();
+    if (document.visibilityState === "hidden") { saveInk(); saveSess(); }
   });
   document.addEventListener("selectstart", function (e) {
     var t = e.target && e.target.tagName;
@@ -2276,7 +2545,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
     }
   });
 
-  load(); loadInk(); setTheme(); setPen();
+  load(); loadInk(); loadSess(); setTheme(); setPen();
   auth.device = devId();
   auth.token = loadToken();
   fetch("data.json").then(function (x) { return x.json(); }).then(function (j) {
